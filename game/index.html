@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Double Vision — a spot-the-difference campaign</title>
+<style>
+  :root {
+    --ink: #eef2fa;
+    --dim: #9fb0cc;
+    --gold: #ffd166;
+    --panel: #1a2338;
+    --panel-edge: #33436b;
+    --accent: #7bdff2;
+    --bad: #ff6b81;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(1100px 600px at 50% -80px, #24365e 0%, #101623 55%, #0a0f1a 100%);
+    color: var(--ink);
+    font-family: "Avenir Next", "Segoe UI", Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 16px 10px;
+  }
+  header { text-align: center; }
+  header h1 {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-shadow: 0 2px 0 #7a5b12, 0 4px 14px rgba(0,0,0,0.6);
+  }
+  header p { margin: 3px 0 0; color: var(--dim); font-size: 13.5px; letter-spacing: 0.4px; }
+
+  #hud {
+    display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; justify-content: center;
+    margin: 12px 0 10px; max-width: 1246px; width: 100%;
+  }
+  .hud-cell {
+    background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 10px;
+    padding: 6px 14px; min-width: 104px; text-align: center;
+  }
+  .hud-cell.wide { min-width: 250px; text-align: left; }
+  .hud-label { font-size: 10.5px; letter-spacing: 1.6px; color: var(--dim); text-transform: uppercase; }
+  .hud-value { font-size: 21px; font-weight: 700; line-height: 1.15; }
+  .hud-value.small { font-size: 15.5px; padding-top: 3px; }
+  #timer.low { color: var(--bad); }
+  #remaining { color: var(--gold); }
+
+  #stageWrap { position: relative; width: 100%; max-width: 1246px; }
+  #stage { display: flex; gap: 14px; justify-content: center; }
+  .panel-wrap { flex: 1 1 0; max-width: 616px; }
+  .panel-label {
+    font-size: 11px; letter-spacing: 2.2px; color: var(--dim); text-transform: uppercase;
+    margin: 0 2px 5px; display: flex; justify-content: space-between;
+  }
+  .panel-label b { color: var(--ink); }
+  canvas.panel {
+    display: block; width: 100%; height: auto;
+    background: #000; border: 3px solid var(--panel-edge); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+    cursor: crosshair;
+  }
+
+  #controls { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+  button {
+    font: inherit; font-size: 14.5px; font-weight: 600;
+    background: #24365e; color: var(--ink);
+    border: 1px solid var(--panel-edge); border-bottom: 3px solid #141f38;
+    border-radius: 9px; padding: 8px 18px; cursor: pointer;
+  }
+  button:hover { background: #2d4474; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: #8a6d1f; border-color: #c9a227; border-bottom-color: #5f4c12; color: #fff7dd; }
+  button.primary:hover { background: #a5832a; }
+
+  footer { margin-top: 10px; color: var(--dim); font-size: 12.5px; text-align: center; }
+  footer kbd {
+    background: #24365e; border: 1px solid var(--panel-edge); border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px; font-family: inherit; color: var(--ink);
+  }
+
+  .overlay {
+    position: absolute; inset: 0; z-index: 5;
+    background: rgba(8, 12, 22, 0.84);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+  }
+  .overlay.hidden, .hidden { display: none !important; }
+  .card {
+    background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 14px;
+    padding: 22px 30px; max-width: 520px; text-align: center;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.6);
+  }
+  .card h2 { margin: 0 0 8px; font-family: Georgia, serif; color: var(--gold); font-size: 25px; letter-spacing: 1px; }
+  .card p { margin: 6px 0; color: var(--ink); font-size: 14.5px; line-height: 1.5; }
+  .card p.dim { color: var(--dim); font-size: 13px; }
+  .card .scene-list { color: var(--dim); font-size: 13px; line-height: 1.65; }
+  .card button { margin-top: 12px; }
+
+  #loupe {
+    position: fixed; z-index: 20; width: 176px; height: 176px;
+    border-radius: 50%; border: 4px solid var(--gold);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.65), inset 0 0 0 2px rgba(0,0,0,0.35);
+    overflow: hidden; pointer-events: none; background: #000;
+  }
+  #loupe canvas { display: block; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>DOUBLE VISION</h1>
+    <p>Six scenes. Eight differences each. One pair of eyes — yours.</p>
+  </header>
+
+  <div id="hud">
+    <div class="hud-cell wide">
+      <div class="hud-label">Now playing</div>
+      <div class="hud-value small" id="sceneName">—</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">Score</div>
+      <div class="hud-value" id="score">0</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">Streak</div>
+      <div class="hud-value" id="streak">—</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">Differences</div>
+      <div class="hud-value"><span id="remaining">8 to find</span></div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">Found</div>
+      <div class="hud-value" id="foundCount">0/8</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">Time</div>
+      <div class="hud-value" id="timer">0:00</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">Target</div>
+      <div class="hud-value small" id="par">par 0:00</div>
+    </div>
+  </div>
+
+  <div id="stageWrap">
+    <div id="stage">
+      <div class="panel-wrap">
+        <p class="panel-label"><b>Original</b><span>the scene as it was</span></p>
+        <canvas class="panel" id="leftCanvas" width="800" height="600"></canvas>
+      </div>
+      <div class="panel-wrap">
+        <p class="panel-label"><b>Altered</b><span>eight things are different</span></p>
+        <canvas class="panel" id="rightCanvas" width="800" height="600"></canvas>
+      </div>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="card">
+        <h2>Find all eight, scene by scene</h2>
+        <p>Two pictures, side by side. Eight details differ. Click a difference in
+           <em>either</em> picture to ring it. Finds score 100 + streak and speed
+           bonuses; a wrong click costs 15 points and 3 seconds. Three hints per
+           scene, 40 points each. Beat the par time for a bonus.</p>
+        <p class="scene-list">1 · Moonlight Night Market &nbsp; 2 · Coral Reef Post Office<br>
+           3 · Sky Train Station &nbsp; 4 · Desert Caravan Camp<br>
+           5 · Winter Owl Cabin &nbsp; 6 · Clockwork Garden</p>
+        <button class="primary" id="btnStart">Start the hunt</button>
+        <p class="dim">The pictures get sneakier as you go. Good luck.</p>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="pauseOverlay">
+      <div class="card">
+        <h2>Paused</h2>
+        <p>The differences aren't going anywhere.</p>
+        <button class="primary" id="btnResume">Back to the hunt</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="completeOverlay">
+      <div class="card">
+        <h2 id="completeTitle">Scene complete!</h2>
+        <p id="completeBody"></p>
+        <button class="primary" id="btnNext">Next scene</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="winOverlay">
+      <div class="card">
+        <h2>Campaign complete!</h2>
+        <p id="winBody"></p>
+        <button class="primary" id="btnAgain">Play again</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="timeupOverlay">
+      <div class="card">
+        <h2>Out of time</h2>
+        <p id="timeupBody"></p>
+        <button class="primary" id="btnRetry">Retry this scene</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="btnHint">Hint (3)</button>
+    <button id="btnLoupe">Magnifier</button>
+    <button id="btnPause">Pause</button>
+    <button id="btnRestart">Restart scene</button>
+    <button id="btnSound">Sound: on</button>
+    <span class="hud-cell" style="min-width:0; padding: 8px 14px;"><span class="hud-label">Career</span>
+      <span class="hud-value small" id="best"></span></span>
+  </div>
+
+  <footer>
+    Shortcuts: <kbd>H</kbd> hint · <kbd>M</kbd> magnifier · <kbd>P</kbd> pause ·
+    <kbd>R</kbd> restart scene · <kbd>Enter</kbd> start / next
+  </footer>
+
+  <div id="loupe" class="hidden"><canvas id="loupeCanvas" width="176" height="176"></canvas></div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
